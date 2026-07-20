@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+uv.lock.tmp
+dist/
+build/
+*.egg-info/
+site/
+.mypy_cache/
+.ty_cache/
+pyrater-output/
+
+# maintainer-only spec/plan/reference material, not part of the published library
+implementation/
+in/
+
+# machine-local Claude Code permissions
+.claude/settings.local.json

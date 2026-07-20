@@ -1,0 +1,7 @@
+- [ ] through GH cli, clone PyRater, newly created, empty repo
+- [ ] commit the library to it
+- [ ] add a gh workflow pipeline for testing
+- [ ] add a gh workflow pipeline for building the pip and the docker image and publish on the GH cr
+- [ ] write fully working examples to replicate the sentiment analysis use-case with the models that we have in the paper
+- [ ] using mermaid.js, draw the plates of the models in the docs
+- [ ] make sure to credit everywhere due the fact that the stan models are not part of the Basile paper, but of the Paun et al. paper
