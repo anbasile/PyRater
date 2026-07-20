@@ -1,0 +1,57 @@
+site_name: PyRater
+site_description: A Python toolkit for annotation analysis with Bayesian models.
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Quickstart: quickstart.md
+  - User Guide:
+      - Annotation data: user_guide/annotation_data.md
+      - Fitting models: user_guide/fitting_models.md
+      - Diagnostics: user_guide/diagnostics.md
+      - Plotting: user_guide/plotting.md
+      - Command line: user_guide/cli.md
+  - Models:
+      - Overview: models/overview.md
+      - Dawid & Skene: models/dawid_skene.md
+      - Hierarchical Dawid & Skene: models/hier_dawid_skene.md
+      - MACE: models/mace.md
+      - Multinomial: models/multinomial.md
+      - Item Difficulty: models/item_difficulty.md
+      - Logistic Random Effects: models/logistic_random_effects.md
+      - Baselines: models/baselines.md
+  - API reference: api_reference.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.snippets
+  - admonition
+  - tables
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: false
+            docstring_style: google
