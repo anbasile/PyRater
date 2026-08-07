@@ -57,12 +57,16 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "PL"]
-# PLR0913/PLR2004: Stan-sampling kwargs legitimately produce many-parameter
-# constructors; magic-number checks are noisy for small model-dimension math.
+# PLR0913/PLR0917/PLR2004: Stan-sampling kwargs legitimately produce
+# many-parameter constructors, and typer builds a CLI *from* the signature, so
+# a command's options have nowhere else to live; magic-number checks are noisy
+# for small model-dimension math. PLR0917 is the positional-count counterpart
+# of PLR0913 and was left out by oversight — without it `ruff check .` fails
+# on cli.py.
 # E741: I/J/K/N are Stan's own data-block variable names (see the .stan
 # files) — keeping them ambiguous-but-consistent beats renaming away from
 # the paper's and Stan's own notation.
-ignore = ["PLR0913", "PLR2004", "E741"]
+ignore = ["PLR0913", "PLR0917", "PLR2004", "E741"]
 
 [tool.ty.rules]
 # ty is Astral's type checker; strict by default via src layout inference.

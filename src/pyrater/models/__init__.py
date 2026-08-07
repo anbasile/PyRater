@@ -12,6 +12,11 @@ from pyrater.models import mace as _mace  # noqa: F401
 from pyrater.models import multinomial as _multinomial  # noqa: F401
 from pyrater.models import item_difficulty as _item_difficulty  # noqa: F401
 from pyrater.models import logistic_random_effects as _logistic_random_effects  # noqa: F401
+
+# Not from the paper's listing: Han, Adiguzel & Carpenter (arXiv:2405.19521).
+# Registered after the six it extends, so registry order still reads as
+# "the 2018 comparison, then what came after it".
+from pyrater.models import irt_2pl_ss as _irt_2pl_ss  # noqa: F401
 from pyrater.models import baselines as _baselines  # noqa: F401
 from pyrater.models.base import PyRaterModel
 
