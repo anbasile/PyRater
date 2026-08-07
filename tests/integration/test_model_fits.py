@@ -13,8 +13,9 @@ MODEL_NAMES = [
     "hier_d&s",
     "item_difficulty",
     "lre",
-    # Binary-only, so it belongs here only because `tiny_data` is K=2. A K>2
-    # fixture must not be handed to it -- the model rejects that by design.
+    # Binary-only, so it belongs in this matrix only because `tiny_data` is
+    # K=2. A K>2 fixture must not be handed to it: the model rejects that by
+    # design, and TestBinaryOnly in test_irt_2pl_ss.py pins the rejection.
     "irt_2pl_ss",
 ]
 
@@ -118,8 +119,12 @@ class TestPointwiseLogLikOnTinyData:
 
     def test_posterior_samples_are_unchanged_by_the_addition(self, fitted: PyRaterModel) -> None:
         # log_lik is generated-quantities only, so it must not appear among the
-        # sampled parameters. This is what makes the claim that cached fits stay
-        # valid checkable rather than a comment in the .stan file.
+        # sampled parameters -- if it did, the addition would have changed the
+        # posterior distribution rather than merely reported on it.
+        #
+        # This is NOT a claim that a fit reproduces bit-for-bit across versions:
+        # the predictive check draws from the same base RNG as the sampler, so
+        # the realised draws move. The distribution is what is preserved.
         assert "log_lik" not in fitted.idata["posterior"].data_vars
 
 

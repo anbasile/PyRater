@@ -246,9 +246,9 @@ class TestPosteriorPredictiveCheck:
 
     @pytest.mark.parametrize("stan_file", STAN_FILES)
     def test_per_item_counts_are_not_written_to_output(self, stan_file: str) -> None:
-        # rep_counts is I x K per draw; at I = 5000 and 4000 draws that is a
-        # gigabyte of CSV nobody reads. It must stay inside a local block so
-        # only the K x (R+1) histogram is saved.
+        # rep_counts is I x K per draw, so on a large corpus with a long chain
+        # it is gigabytes of CSV nobody reads. It must stay inside a local
+        # block so only the K x (R+1) histogram is saved.
         source = self._source(stan_file)
         generated = source[source.index("generated quantities") :]
         declaration = generated.index("array[I, K] int rep_counts")

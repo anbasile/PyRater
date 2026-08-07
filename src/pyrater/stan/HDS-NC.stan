@@ -106,7 +106,8 @@ generated quantities {
   // votes that class received: rep_vote_hist[k, c + 1] counts the items where
   // class k drew exactly c replicated votes.  Generalises the paper's check to
   // K > 2 and reduces to it at K = 2.  Per-item counts stay in a local block so
-  // the CSV carries K*(R+1) numbers per draw rather than I*K.
+  // the CSV carries K*(R+1) numbers per draw rather than I*K, which is the
+  // difference between kilobytes and gigabytes on a large corpus.
   array[I] int<lower=1,upper=K> z_rep;
   array[K, R_max_ppc + 1] int rep_vote_hist = rep_array(0, K, R_max_ppc + 1);
 

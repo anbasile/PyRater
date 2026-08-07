@@ -100,7 +100,7 @@ generated quantities {
   //
   // The per-item counts stay in a local block, so the CSV carries K*(R+1)
   // numbers per draw rather than I*K -- the difference between kilobytes and
-  // gigabytes at I = 5000.
+  // gigabytes once the item count grows.
   array[I] int<lower=1,upper=K> z_rep;
   array[K, R_max_ppc + 1] int rep_vote_hist = rep_array(0, K, R_max_ppc + 1);
 

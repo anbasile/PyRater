@@ -91,7 +91,8 @@ generated quantities {
   // votes that class received: rep_vote_hist[k, c + 1] counts the items where
   // class k drew exactly c replicated votes.  Generalises the paper's check to
   // K > 2 and reduces to it at K = 2.  Per-item counts stay in a local block so
-  // the CSV carries K*(R+1) numbers per draw rather than I*K.
+  // the CSV carries K*(R+1) numbers per draw rather than I*K, which is the
+  // difference between kilobytes and gigabytes on a large corpus.
   array[I] int<lower=1,upper=K> z_rep;
   array[K, R_max_ppc + 1] int rep_vote_hist = rep_array(0, K, R_max_ppc + 1);
 
@@ -104,8 +105,9 @@ generated quantities {
   {
     array[I, K] int rep_counts = rep_array(0, I, K);
     for (n in 1:N) {
-      // No annotator term at all: one emission shared by everyone.
-      // This model is in the ladder to show what the rater terms buy.
+      // No annotator term at all: one emission shared by everyone, which
+      // is what makes this model the reference for what a per-rater term
+      // is worth on a given dataset.
       int y_rep_n = categorical_rng(zeta[z_rep[ii[n]]]);
       rep_counts[ii[n], y_rep_n] += 1;
     }

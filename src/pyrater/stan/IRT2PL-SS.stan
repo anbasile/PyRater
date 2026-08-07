@@ -1,7 +1,7 @@
 // pyrater note: this is Han, Adiguzel & Carpenter (2026), "Hierarchical
 // Bayesian Crowdsourcing with Item Difficulty" (arXiv:2405.19521), reduction
-// "a" of their Table 1 -- IRT-2PL with per-rater sensitivity and specificity,
-// which is the model that won on both of their datasets.  Adapted from
+// "a" of their Table 1 -- IRT-2PL with per-annotator sensitivity and
+// specificity, the model that won on both of their datasets.  Adapted from
 // stan_hierarchical/a.stan of https://github.com/seongwoohan/bayes-crowdsourcing-irt
 // (MIT, Copyright (c) 2024 Bob Carpenter).
 //
@@ -9,7 +9,8 @@
 //   - the `#include` files are flattened into this one, since pyrater loads a
 //     single .stan file per model;
 //   - the data block takes pyrater's contract (J, K, N, I, ii, jj, y with y in
-//     1..K) instead of (item, rater, rating with rating in 0..1), and converts;
+//     1..K) instead of the original's (item, rater, rating in 0..1), and
+//     converts between them;
 //   - `lambda` is dropped rather than set to a zero vector -- reduction "a" IS
 //     lambda = 0, so multiplying by (1 - lambda) is a no-op kept only so the
 //     original could share one file across reductions;
@@ -18,39 +19,48 @@
 //   - the posterior predictive check reports pyrater's per-class vote
 //     histogram rather than the original's vote_count/rater_count pair.
 //
-// WHY THIS MODEL IS IN THE LADDER AT ALL.
+// WHEN TO REACH FOR THIS MODEL RATHER THAN THE OTHERS.
 //
-// Two reasons, and the second is the one that matters for a gold-free
-// experiment.
+// Two reasons, and the second decides whether the model is usable at all in a
+// given analysis.
 //
-// First, it fits better.  The paper's finding is that Dawid & Skene "fails to
-// capture the ratings distribution adequately" -- it "inflates the number of
-// middling positive votes compared to the data" -- while this model does not.
-// That is a posterior predictive statement, invisible to R-hat and ESS.
+// First, it separates an item's DIFFICULTY from its DISCRIMINATION.  An item
+// everyone gets wrong and an item only good annotators get right are different
+// objects; Dawid & Skene distinguishes neither, and ID-NC and LRE-NC capture
+// the first but not the second.  The paper's own finding is that Dawid & Skene
+// "fails to capture the ratings distribution adequately" -- it "inflates the
+// number of middling positive votes compared to the data" -- while this model
+// does not.  That is a posterior predictive statement, invisible to R-hat and
+// ESS; the rep_vote_hist block below is what surfaces it.
 //
-// Second, and decisively: IT IS ORIENTATION-IDENTIFIED WITHOUT GOLD.  Every
-// symmetric annotation model -- Dawid & Skene, hierarchical D&S, item
-// difficulty, multinomial -- has a latent class labelling that Stan cannot
-// pin down.  Aligning chains to each other fixes the WITHIN-fit ambiguity;
-// only gold fixes the GLOBAL one, and a gold-free experiment has none.  A
-// globally flipped fit reports a rank correlation of -0.92 where +0.92 is
-// true and an accuracy of 13.9 where 86.0 is true, and nothing in the
-// diagnostics says so.
+// Second: IT IS ORIENTATION-IDENTIFIED WITHOUT GOLD.  Every symmetric
+// annotation model -- Dawid & Skene, hierarchical D&S, item difficulty,
+// multinomial -- has a latent class labelling that Stan cannot pin down.
+// `align_chains` fixes the WITHIN-fit ambiguity by matching chains to each
+// other; only `align_to_gold` fixes the GLOBAL one, and it needs gold labels.
+// An analysis that has none can therefore come back with the classes
+// systematically swapped: every reported quantity is its own mirror image,
+// rank correlations against a known quality signal arrive with the sign
+// reversed, and accuracy arrives near its own complement -- with clean
+// convergence diagnostics throughout, because the chains agree with each other
+// perfectly about the labelling they all chose.
 //
 // The constraint below rules that out.  Writing
 //
 //     logit_alpha_sens = -logit_alpha_spec + log1p_exp(eta)
 //
-// forces logit_sens + logit_spec > 0, i.e. every rater is better than chance.
+// forces logit_sens + logit_spec > 0: every annotator is better than chance.
 // Under a global flip sens' = 1 - spec and spec' = 1 - sens, so the sum lands
-// below chance and the flipped mode is outside the support.  The labelling is
-// therefore identified by the model rather than by the data, which is exactly
-// what an experiment that may not look at gold requires.
+// below chance and the flipped mode falls outside the support.  The labelling
+// is identified by the model rather than by the data.
 //
-// The cost is an assumption: raters must be better than chance on average. It
-// holds for a pool of zero-shot label descriptions, whose worst member still
-// scores well above 50, and it would NOT hold for a pool containing genuinely
-// adversarial annotators.
+// THE COST IS AN ASSUMPTION, and it is a real restriction.  Annotators must be
+// better than chance.  That is safe for trained annotators, for crowdworkers
+// after spam filtering, and for an ensemble of reasonable classifiers.  It is
+// NOT safe where genuinely adversarial annotators may be present -- a pool
+// under attack, or one where a systematic misunderstanding inverts someone's
+// labels.  Use a symmetric model there, and resolve the orientation some other
+// way.
 
 data {
   int<lower=1> J; //number of annotators
@@ -72,8 +82,9 @@ transformed data {
   // pyrater passes classes as 1..K; the original is written on 0/1 ratings.
   // Class 2 is "positive", so sensitivity is the rate of reporting class 2 on
   // an item whose true class is 2.  Which real label that is depends on the
-  // order `AnnotationData` factorized them in, so the two rater parameters are
-  // only interpretable against `class_labels` -- the FIT does not depend on it.
+  // order `AnnotationData` factorized them in, so the two annotator
+  // parameters are only interpretable against `class_labels` -- the FIT
+  // does not depend on it.
   array[N] int<lower=0,upper=1> rating;
   for (n in 1:N) {
     rating[n] = y[n] - 1;
@@ -92,7 +103,7 @@ parameters {
   vector[2] mu_alpha;             //population mean of (eta, logit specificity)
   vector<lower=0>[2] tau_alpha;   //population scale
   cholesky_factor_corr[2] L_Omega_alpha;
-  matrix[2, J] z_alpha;           //non-centred rater effects
+  matrix[2, J] z_alpha;           //non-centred annotator effects
   vector[I] beta;                 //item difficulty
   vector<lower=0>[I] delta;       //item discrimination
 }
@@ -171,7 +182,7 @@ generated quantities {
       int i = ii[n];
       int j = jj[n];
       // The emission the likelihood scores the observed rating with: an item's
-      // discrimination times the gap between the rater's ability on the true
+      // discrimination times the gap between the annotator's ability on the true
       // class and the item's difficulty.
       real p = z_rep[i] == 2
                  ? inv_logit(delta[i] * (logit_alpha_sens[j] - beta[i]))

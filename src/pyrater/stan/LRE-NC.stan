@@ -95,9 +95,10 @@ model
 
 generated quantities {
   // NOTE: this generated quantities block is a pyrater addition, not part of
-  // the original paper's supplementary material. It is purely additive
-  // (does not touch `parameters`/`model`, so posterior samples are
-  // bit-for-bit unchanged) and only materializes normalized, per-class
+  // the original paper's supplementary material. It does not touch
+  // `parameters`/`model`, so the posterior DISTRIBUTION is unchanged -- though
+  // the realised draws are not, since the predictive check below draws from
+  // the same base RNG the sampler uses. It materializes normalized, per-class
   // confusion-matrix-like quantities -- beta_norm (annotator ability) and
   // theta_norm (item difficulty) -- the same way HDS-NC.stan and ID-NC.stan
   // already do as transformed parameters, so pyrater can read them back for
@@ -137,7 +138,8 @@ generated quantities {
   // votes that class received: rep_vote_hist[k, c + 1] counts the items where
   // class k drew exactly c replicated votes.  Generalises the paper's check to
   // K > 2 and reduces to it at K = 2.  Per-item counts stay in a local block so
-  // the CSV carries K*(R+1) numbers per draw rather than I*K.
+  // the CSV carries K*(R+1) numbers per draw rather than I*K, which is the
+  // difference between kilobytes and gigabytes on a large corpus.
   array[I] int<lower=1,upper=K> z_rep;
   array[K, R_max_ppc + 1] int rep_vote_hist = rep_array(0, K, R_max_ppc + 1);
 

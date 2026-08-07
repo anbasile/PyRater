@@ -1,4 +1,4 @@
-"""IRT-2PL with per-rater sensitivity and specificity.
+"""IRT-2PL with per-annotator sensitivity and specificity.
 
 Han, Adiguzel & Carpenter (2026), "Hierarchical Bayesian Crowdsourcing with
 Item Difficulty" (arXiv:2405.19521), reduction "a" of their Table 1 -- the
@@ -8,15 +8,28 @@ https://github.com/seongwoohan/bayes-crowdsourcing-irt (MIT).
 Two properties distinguish it from the rest of the registry.
 
 It separates an item's DIFFICULTY from its DISCRIMINATION, so an item everyone
-gets wrong and an item that only good raters get right are different objects.
+gets wrong and an item that only good annotators get right are different objects.
 Dawid & Skene has neither; `item_difficulty` and `lre` have the first but not
 the second.
 
 More consequentially, it is ORIENTATION-IDENTIFIED WITHOUT GOLD. See the
 header of IRT2PL-SS.stan: the softplus constraint on sensitivity forces every
-rater above chance, which excludes the globally flipped mode that symmetric
+annotator above chance, which excludes the globally flipped mode that symmetric
 models cannot rule out. `class_indexed_params` is therefore empty -- there is
 no permutation to correct, exactly as for MACE.
+
+Two restrictions follow, and both are checked rather than documented away.
+
+BINARY ONLY. Sensitivity and specificity are two-class notions, so the model
+rejects K > 2 in its `transformed data` block. Every other model in the
+registry accepts any K, so code that sweeps `PyRaterModel.list_available()`
+has to expect this one to refuse some datasets.
+
+ANNOTATORS MUST BEAT CHANCE. That is what buys the orientation, and it is a
+real restriction: a pool containing genuinely adversarial annotators violates
+it, and the model will place them at the boundary rather than below it. Where
+that is a live possibility, prefer a symmetric model and resolve the
+orientation another way.
 """
 
 from __future__ import annotations
@@ -50,7 +63,7 @@ class Irt2plSensSpecModel(StanBackedModel):
         models, so the raw latent parameter is exposed as `difficulty_logit`
         below rather than through this name.
 
-        Averaged over raters and weighted by prevalence, since an item's
+        Averaged over annotators and weighted by prevalence, since an item's
         difficulty in this model is only defined relative to who annotates it.
         """
         posterior = self.idata["posterior"]
@@ -80,7 +93,7 @@ class Irt2plSensSpecModel(StanBackedModel):
         Unlike `difficulty`, this is not comparable across models -- but it is
         the parameter the model actually estimates, and the one that pairs with
         `discrimination` to distinguish an item everyone misses from an item
-        only good raters get right.
+        only good annotators get right.
         """
         result: npt.NDArray[np.float64] = (
             self.idata["posterior"]["beta"].mean(dim=("chain", "draw")).to_numpy()
@@ -89,7 +102,7 @@ class Irt2plSensSpecModel(StanBackedModel):
 
     @property
     def sensitivity(self) -> npt.NDArray[np.float64]:
-        """Per-rater sensitivity, on the probability scale.
+        """Per-annotator sensitivity, on the probability scale.
 
         The rate of reporting the positive class on an item that is positive.
         Which real label "positive" names depends on the order
@@ -102,7 +115,7 @@ class Irt2plSensSpecModel(StanBackedModel):
 
     @property
     def specificity(self) -> npt.NDArray[np.float64]:
-        """Per-rater specificity, on the probability scale."""
+        """Per-annotator specificity, on the probability scale."""
         logits = self.idata["posterior"]["logit_alpha_spec"].mean(dim=("chain", "draw")).to_numpy()
         result: npt.NDArray[np.float64] = 1.0 / (1.0 + np.exp(-logits))
         return result
@@ -111,7 +124,7 @@ class Irt2plSensSpecModel(StanBackedModel):
     def discrimination(self) -> npt.NDArray[np.float64]:
         """Per-item discrimination.
 
-        How sharply an item separates raters by ability. An item with delta
+        How sharply an item separates annotators by ability. An item with delta
         near zero is answered the same way by everyone and carries no
         information about who is good.
         """

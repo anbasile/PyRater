@@ -140,8 +140,9 @@ class TestModelStructure:
 class TestBinaryOnly:
     def test_rejects_more_than_two_classes(self) -> None:
         # Sensitivity and specificity are binary notions. A K > 2 dataset must
-        # fail loudly rather than fit something meaningless -- AG News is in
-        # the thesis grid and would otherwise reach this model silently.
+        # fail loudly rather than fit something meaningless: this model sits in
+        # the same registry as six that accept any K, so a caller sweeping over
+        # `list_available()` would otherwise reach it silently.
         rng = np.random.default_rng(1)
         rows = [
             {"item_id": f"i{i}", "annotator_id": f"r{j}", "label": f"c{rng.integers(0, 4)}"}
