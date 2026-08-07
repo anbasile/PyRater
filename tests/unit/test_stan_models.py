@@ -1,3 +1,5 @@
+from importlib import resources
+
 import arviz as az
 import numpy as np
 import pytest
@@ -10,6 +12,16 @@ from pyrater.models.item_difficulty import ItemDifficultyModel
 from pyrater.models.logistic_random_effects import LogisticRandomEffectsModel
 from pyrater.models.mace import MaceModel
 from pyrater.models.multinomial import MultinomialModel
+
+
+def _strip_comments(source: str) -> str:
+    """Stan source with `//` comments removed.
+
+    Source-level tests assert things about CODE. Matching against the raw file
+    makes a model fail for explaining itself in a header comment, which
+    punishes exactly the documentation these models most need.
+    """
+    return "\n".join(line.split("//")[0] for line in source.splitlines())
 
 
 class TestRegistration:
@@ -134,3 +146,119 @@ class TestNativeDifficultyFromThetaNorm:
         model._idata = self._fake_idata()
         difficulty = model._compute_difficulty()
         assert difficulty[0] < difficulty[1]
+
+
+class TestPointwiseLogLik:
+    """Every bundled model must expose `log_lik` so ArviZ can compute LOO/WAIC.
+
+    Source-level checks: they need no CmdStan, so a model file that loses the
+    declaration fails fast rather than at sampling time.
+    """
+
+    STAN_FILES = (
+        "DS.stan",
+        "MACE.stan",
+        "Multinomial.stan",
+        "HDS-NC.stan",
+        "ID-NC.stan",
+        "LRE-NC.stan",
+        "IRT2PL-SS.stan",
+    )
+
+    @staticmethod
+    def _source(stan_file: str) -> str:
+        return resources.files("pyrater.stan").joinpath(stan_file).read_text()
+
+    @pytest.mark.parametrize("stan_file", STAN_FILES)
+    def test_declares_log_lik_over_items(self, stan_file: str) -> None:
+        source = self._source(stan_file)
+        # Indexed by item, not by annotation: these models marginalize the
+        # latent class, so the likelihood factorizes over items.
+        assert "vector[I] log_lik;" in source
+
+    @pytest.mark.parametrize("stan_file", STAN_FILES)
+    def test_log_lik_matches_the_models_own_target(self, stan_file: str) -> None:
+        source = self._source(stan_file)
+        # The `model` block accumulates exactly this quantity per item, so the
+        # two must stay in step; a divergence between them would make LOO
+        # describe a different model from the one that was fitted.
+        assert "target += log_sum_exp(log_q_c[i]);" in source
+        assert "log_lik[i] = log_sum_exp(log_q_c[i]);" in source
+
+    @pytest.mark.parametrize("stan_file", STAN_FILES)
+    def test_log_lik_is_additive_only(self, stan_file: str) -> None:
+        # `log_lik` belongs to generated quantities alone. If it appeared in
+        # `parameters` or `model` the addition would change the posterior.
+        #
+        # Counted over CODE, not over the file: a model whose header comment
+        # explains what `log_lik` is would otherwise fail for documenting
+        # itself, which is the opposite of what this is for.
+        source = _strip_comments(self._source(stan_file))
+        generated = source.split("generated quantities")[-1]
+        assert source.count("log_lik") == generated.count("log_lik")
+
+
+class TestPosteriorPredictiveCheck:
+    """Every bundled model must replicate data it can be checked against.
+
+    Convergence diagnostics report on the sampler, not on the model: R-hat and
+    ESS can pass on a model that cannot produce data resembling the observed
+    ratings. Han, Adiguzel & Carpenter (arXiv:2405.19521) show Dawid & Skene
+    doing exactly that. These are source-level checks, so a model file that
+    loses the block fails fast rather than after an hour of sampling.
+    """
+
+    STAN_FILES = TestPointwiseLogLik.STAN_FILES
+
+    @staticmethod
+    def _source(stan_file: str) -> str:
+        return resources.files("pyrater.stan").joinpath(stan_file).read_text()
+
+    @pytest.mark.parametrize("stan_file", STAN_FILES)
+    def test_declares_the_replicated_vote_histogram(self, stan_file: str) -> None:
+        source = self._source(stan_file)
+        assert "array[K, R_max_ppc + 1] int rep_vote_hist" in source
+
+    @pytest.mark.parametrize("stan_file", STAN_FILES)
+    def test_samples_a_latent_class_per_item(self, stan_file: str) -> None:
+        # The replication is conditional on a drawn true class, not on q_z
+        # itself: averaging over the class posterior instead of sampling it
+        # would understate the spread of the replicated histogram and make
+        # every model look like a better fit than it is.
+        source = self._source(stan_file)
+        assert "z_rep[i] = categorical_rng(q_z[i]);" in source
+
+    @pytest.mark.parametrize("stan_file", STAN_FILES)
+    def test_replication_is_conditional_on_the_sampled_class(self, stan_file: str) -> None:
+        # The emission differs per model -- that is what the check
+        # discriminates between -- but every one of them must condition on
+        # z_rep rather than on the observed y.
+        # Anchored on the replication LOOP rather than on the `y_rep_n`
+        # assignment. Models differ in where they mention the sampled class:
+        # MACE puts it inside the draw, IRT2PL-SS computes a probability from
+        # it on the line before. Both condition on it; only the loop bounds
+        # them both.
+        source = _strip_comments(self._source(stan_file))
+        generated = source.split("generated quantities")[-1]
+        loop = generated[generated.index("for (n in 1:N)") :]
+        emission = loop[: loop.index("rep_counts[")]
+        assert "z_rep[" in emission
+
+    @pytest.mark.parametrize("stan_file", STAN_FILES)
+    def test_per_item_counts_are_not_written_to_output(self, stan_file: str) -> None:
+        # rep_counts is I x K per draw, so on a large corpus with a long chain
+        # it is gigabytes of CSV nobody reads. It must stay inside a local
+        # block so only the K x (R+1) histogram is saved.
+        source = self._source(stan_file)
+        generated = source[source.index("generated quantities") :]
+        declaration = generated.index("array[I, K] int rep_counts")
+        # The nearest enclosing brace before the declaration must be a bare
+        # local block, not the generated quantities block itself.
+        assert generated.rindex("{", 0, declaration) > generated.index("z_rep[i] =")
+
+    @pytest.mark.parametrize("stan_file", STAN_FILES)
+    def test_sizing_comes_from_the_data(self, stan_file: str) -> None:
+        # R_max_ppc must be derived, not assumed: an item rated by more
+        # annotators than the histogram has bins would write out of range.
+        source = self._source(stan_file)
+        assert "int R_max_ppc = max(n_ratings_ppc);" in source

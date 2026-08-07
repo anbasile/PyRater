@@ -20,3 +20,12 @@ in/
 
 # machine-local Claude Code permissions
 .claude/settings.local.json
+
+# CmdStan compiles each model to a platform-specific executable beside its
+# .stan source (and to a .hpp on the way). They are ~3 MB each, rebuilt on
+# demand by cmdstanpy, and valid only for the machine and CmdStan version that
+# produced them -- committing them would ship a broken binary to every other
+# platform.
+src/pyrater/stan/*
+!src/pyrater/stan/*.stan
+!src/pyrater/stan/__init__.py
