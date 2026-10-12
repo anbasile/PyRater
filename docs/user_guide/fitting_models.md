@@ -7,7 +7,8 @@ from pyrater import PyRaterModel
 
 PyRaterModel.list_available()
 # ['d&s', 'hier_d&s', 'mace', 'multinomial', 'item_difficulty', 'lre',
-#  'majority_voting', 'kappa_majority_voting']
+#  'irt_2pl_ss', 'majority_voting', 'kappa_majority_voting',
+#  'np_d&s', 'np_mace', 'np_hier_d&s', 'np_nested']
 
 model = PyRaterModel.get("d&s")
 ```
@@ -32,6 +33,12 @@ model.fit(
 
 `fit()` always returns `self`, so it composes naturally:
 `model = PyRaterModel.get("d&s").fit(data)`.
+
+Stan-backed models forward any further keyword argument to CmdStanPy's
+`sample()`. The NumPyro-backed models (`np_*`) take a few more named
+arguments instead (`method`, `anchors`, `groups`, `map_steps`,
+`learning_rate`, `mcmc_kwargs`) and reject anything else with a
+`TypeError`; see [NumPyro backend](../models/numpyro.md).
 
 Every property (`labels`, `labels_proba`, `difficulty`, `credibilities`,
 `idata`) raises `pyrater.exceptions.NotFittedError` until `fit()` has been

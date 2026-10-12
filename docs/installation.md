@@ -17,9 +17,18 @@ python -m cmdstanpy.install_cmdstan
 ## Optional extras
 
 ```bash
+pip install "pyrater[jax]"       # JAX and NumPyro, for the np_* models
 pip install "pyrater[docs]"      # build these docs locally
 pip install "pyrater[examples]"  # sentence-transformers/datasets, for examples/
 ```
+
+The `jax` extra is what the [NumPyro-backed models](models/numpyro.md)
+(`np_d&s`, `np_mace`, `np_hier_d&s`, `np_nested`) run on. They need no
+CmdStan. Everything else in PyRater works without the extra: those four
+models are registered either way, and fitting one without it raises an
+`ImportError` that names the extra. The extra installs the CPU build of
+JAX; for a GPU, install the JAX build for your hardware first, following
+[JAX's own instructions](https://docs.jax.dev/en/latest/installation.html).
 
 ## Docker
 

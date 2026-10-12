@@ -21,7 +21,10 @@ steps:
    anchoring the now-mutually-aligned chains to the real class names.
 
 `mace` is immune to this entirely — its likelihood anchors the class axis
-directly to the observed label codes, so there's nothing to realign.
+directly to the observed label codes, so there's nothing to realign. The
+NumPyro-backed models (`np_*`) are not realigned either: their priors favour
+reporting the true class, and that is what fixes the class axis. Gold labels
+have no effect on them, and passing `gold=` warns.
 
 ## Convergence
 
@@ -39,3 +42,10 @@ R-hat means "trust these numbers less," not "these numbers don't exist."
 
 Pass `check_rhat=False` to `fit()` to skip the check entirely (`convergence_`
 stays `None`).
+
+The NumPyro-backed models add two things. After NUTS, `model.idata` has a
+`sample_stats` group (divergent transitions, tree depth, energy, acceptance
+rate). After `fit(method="map")` there is a single draw and so no R-hat:
+`convergence_` is `None`, and `model.map_converged_` and `model.map_losses_`
+report on the optimiser instead. See
+[NumPyro backend](../models/numpyro.md#methodmap).

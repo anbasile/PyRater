@@ -1,6 +1,6 @@
 [project]
 name = "pyrater"
-version = "0.1.0"
+version = "0.2.0"
 description = "A Python toolkit for annotation analysis with Bayesian models."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -27,9 +27,9 @@ dev = [
   "pytest-cov>=5.0",
   "ruff>=0.6",
   "ty>=0.0.1a1",
-  # So the test suite exercises the NumPyro backend.
-  "jax>=0.7",
-  "numpyro>=0.20",
+  # So the test suite exercises the NumPyro backend. A self-reference, so the
+  # pins live in one place: the `jax` extra below.
+  "pyrater[jax]",
 ]
 docs = ["mkdocs>=1.6", "mkdocs-material>=9.5", "mkdocstrings[python]>=0.25"]
 examples = ["sentence-transformers>=3.0", "datasets>=2.20"]
