@@ -18,6 +18,9 @@ from pyrater.models import logistic_random_effects as _logistic_random_effects  
 # "the 2018 comparison, then what came after it".
 from pyrater.models import irt_2pl_ss as _irt_2pl_ss  # noqa: F401
 from pyrater.models import baselines as _baselines  # noqa: F401
+
+# The NumPyro backend. Registered last; JAX is imported only when one is fitted.
+from pyrater.models import numpyro_models as _numpyro_models  # noqa: F401
 from pyrater.models.base import PyRaterModel
 
 __all__ = ["PyRaterModel"]

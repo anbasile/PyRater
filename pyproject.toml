@@ -27,9 +27,13 @@ dev = [
   "pytest-cov>=5.0",
   "ruff>=0.6",
   "ty>=0.0.1a1",
+  # So the test suite exercises the NumPyro backend.
+  "jax>=0.7",
+  "numpyro>=0.20",
 ]
 docs = ["mkdocs>=1.6", "mkdocs-material>=9.5", "mkdocstrings[python]>=0.25"]
 examples = ["sentence-transformers>=3.0", "datasets>=2.20"]
+jax = ["jax>=0.7", "numpyro>=0.20"]
 
 [build-system]
 requires = ["hatchling"]
@@ -67,6 +71,13 @@ select = ["E", "F", "I", "UP", "B", "SIM", "PL"]
 # files) — keeping them ambiguous-but-consistent beats renaming away from
 # the paper's and Stan's own notation.
 ignore = ["PLR0913", "PLR0917", "PLR2004", "E741"]
+
+[tool.ruff.lint.per-file-ignores]
+# JAX and NumPyro are an optional extra, and importing pyrater registers every
+# model. So the NumPyro-backed models import them inside the functions that
+# need them, and a missing extra only fails when one of those models is fitted.
+"src/pyrater/models/_numpyro_backed.py" = ["PLC0415"]
+"src/pyrater/models/numpyro_models.py" = ["PLC0415"]
 
 [tool.ty.rules]
 # ty is Astral's type checker; strict by default via src layout inference.
