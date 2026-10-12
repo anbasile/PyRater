@@ -33,6 +33,7 @@ nav:
       - Item Difficulty: models/item_difficulty.md
       - Logistic Random Effects: models/logistic_random_effects.md
       - Baselines: models/baselines.md
+      - NumPyro backend: models/numpyro.md
   - API reference: api_reference.md
   - Contributing: contributing.md
   - Changelog: changelog.md

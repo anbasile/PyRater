@@ -34,6 +34,20 @@ class TestUnknownDataset:
             load_dataset("does-not-exist")
 
 
+def _standardized_rows() -> pd.DataFrame:
+    """Six rows in the layout of the release's `rte.standardized.tsv`: two
+    items with three labels each, one gold label per item repeated on its rows."""
+    return pd.DataFrame(
+        {
+            "!amt_annotation_ids": ["an1", "an2", "an3", "an4", "an5", "an6"],
+            "!amt_worker_ids": ["A19IB", "AEX5N", "A17RP", "A19IB", "AEX5N", "A15L6"],
+            "orig_id": [266, 266, 266, 804, 804, 804],
+            "response": [1, 1, 0, 0, 1, 0],
+            "gold": [1, 1, 1, 0, 0, 0],
+        }
+    )
+
+
 class TestRte:
     @pytest.fixture(autouse=True)
     def _fake_download(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> list[str]:
@@ -42,18 +56,7 @@ class TestRte:
         def fake_download(url: str, dest: Path) -> None:
             calls.append(url)
             dest.parent.mkdir(parents=True, exist_ok=True)
-            if dest.name == "rte1.tsv":
-                pd.DataFrame({"id": [101, 102], "value": ["TRUE", "FALSE"]}).to_csv(
-                    dest, sep="\t", index=False
-                )
-            else:
-                pd.DataFrame(
-                    {
-                        "!amt_worker_ids": ["worker1", "worker1", "worker2"],
-                        "id": [101, 102, 101],
-                        "value": ["TRUE", "FALSE", "FALSE"],
-                    }
-                ).to_csv(dest, index=False)
+            _standardized_rows().to_csv(dest, sep="\t", index=False)
 
         monkeypatch.setattr("pyrater.data.loaders._download", fake_download)
         monkeypatch.setattr("pyrater.data.loaders._rte_cache_dir", lambda: tmp_path / "rte-cache")
@@ -63,10 +66,22 @@ class TestRte:
         data = load_dataset("rte")
         assert isinstance(data, AnnotationData)
         assert data.n_items == 2
-        assert data.n_annotators == 2
-        assert len(_fake_download) == 2  # annotations + gold
+        assert data.n_annotators == 4
+        assert data.n_annotations == 6
+        assert len(_fake_download) == 1
+        assert _fake_download[0].endswith("all_collected_data/rte.standardized.tsv")
+
+    def test_labels_are_the_workers_responses_not_the_gold_column(self) -> None:
+        data = load_dataset("rte")
+        frame = data.to_long_df()
+        first_item = frame[frame["item_id"] == 266]
+        # The workers disagreed on item 266; its gold label is 1 on every row.
+        assert first_item["label"].tolist() == [1, 1, 0]
+        assert data.gold is not None
+        gold = {data.item_ids[i]: data.class_labels[c] for i, c in data.gold.items()}
+        assert gold == {266: 1, 804: 0}
 
     def test_second_call_uses_the_cache_not_the_network(self, _fake_download: list[str]) -> None:
         load_dataset("rte")
         load_dataset("rte")
-        assert len(_fake_download) == 2  # not 4: the second call hit the cache
+        assert len(_fake_download) == 1  # not 2: the second call hit the cache

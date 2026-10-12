@@ -28,6 +28,18 @@ model.credibilities      # Q3: how trustworthy each annotator was
 pyrater -m d&s annotations.csv -o results/
 ```
 
+Four further models run on [NumPyro](https://num.pyro.ai/) instead of Stan
+(`np_d&s`, `np_mace`, `np_hier_d&s`, and `np_nested`, for annotators that
+are not independent of each other). They need the optional `jax` extra and
+no CmdStan, and can return a posterior mode in seconds:
+
+```python
+model = pyr.PyRaterModel.get("np_d&s").fit(data, method="map")
+```
+
+They share a likelihood with their Stan namesakes but not the priors, so
+they are different models; `docs/models/numpyro.md` lists the differences.
+
 See `docs/` for the full guide (`docs/quickstart.md`,
 `docs/models/overview.md` for choosing a model, `docs/user_guide/` for data
 loading, diagnostics, plotting, and the CLI).
@@ -37,6 +49,8 @@ loading, diagnostics, plotting, and the CLI).
 ```bash
 pip install pyrater
 python -m cmdstanpy.install_cmdstan   # once, to install the Stan sampler
+
+pip install "pyrater[jax]"            # optional: JAX and NumPyro, for the np_* models
 ```
 
 Or use the Docker image, which ships CmdStan and all six models
@@ -58,7 +72,8 @@ podman build -t pyrater-dev -f docker/Dockerfile.dev .
 podman build -t pyrater-stan-test -f docker/Dockerfile.stan-test .
 
 ./docker/run-dev.sh uv sync --extra dev
-./docker/run-dev.sh uv run pytest -m "not stan"     # fast unit suite (~2s)
+./docker/run-dev.sh uv run pytest -m "not stan"     # unit suite, no CmdStan (a few minutes:
+                                                    # the NumPyro models compile on every fit)
 ./docker/run-dev.sh uvx ruff format .
 ./docker/run-dev.sh uvx ruff check .
 ./docker/run-dev.sh uvx ty check --python /venv src tests scripts examples

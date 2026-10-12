@@ -18,3 +18,21 @@ model, including the two with no annotator dimension at all.
 
 Two non-Bayesian baselines are also registered, for comparison:
 [`majority_voting` and `kappa_majority_voting`](baselines.md).
+
+## The NumPyro backend
+
+Four more models are written in NumPyro instead of Stan, and need the
+optional `jax` extra (`pip install "pyrater[jax]"`) rather than CmdStan:
+
+| Model | Registry name | Good for |
+|---|---|---|
+| Dawid & Skene | `np_d&s` | Dense data (most annotators label most items); a posterior mode in seconds |
+| MACE | `np_mace` | The same, with MACE's competence/spamming structure |
+| Hierarchical D&S | `np_hier_d&s` | The same, with confusion matrices pooled across annotators |
+| Nested | `np_nested` | Annotators that are not independent, e.g. one model under several prompts |
+
+The first three share a likelihood with `d&s`, `mace` and `hier_d&s` but
+**not their priors or parameter names**; they are different models, not a
+second implementation of the same ones. See
+[NumPyro backend](numpyro.md) for the differences, the `fit` arguments
+(`method="map"`, `anchors`, `groups`) and the diagnostics.

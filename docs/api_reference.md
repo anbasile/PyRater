@@ -1,8 +1,39 @@
 # API reference
 
+## Data and models
+
 ::: pyrater.data.annotation_data.AnnotationData
 
 ::: pyrater.models.base.PyRaterModel
+
+## NumPyro backend
+
+Needs the `jax` extra; see [NumPyro backend](models/numpyro.md).
+
+::: pyrater.models._numpyro_backed.NumpyroBackedModel
+    options:
+      members:
+        - fit
+
+::: pyrater.models._numpyro_backed.map_loss_converged
+
+::: pyrater.models.numpyro_models.NumpyroDawidSkene
+    options:
+      members: false
+
+::: pyrater.models.numpyro_models.NumpyroMace
+    options:
+      members: false
+
+::: pyrater.models.numpyro_models.NumpyroHierDawidSkene
+    options:
+      members: false
+
+::: pyrater.models.numpyro_models.NumpyroNested
+    options:
+      members: false
+
+## Diagnostics
 
 ::: pyrater.diagnostics.label_switching
     options:
@@ -16,6 +47,8 @@
       members:
         - check_convergence
         - ConvergenceReport
+
+## Plotting
 
 ::: pyrater.plotting
     options:

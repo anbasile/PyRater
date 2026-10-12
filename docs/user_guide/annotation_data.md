@@ -16,8 +16,10 @@ data = AnnotationData.from_long_df(df, item_col="item_id", annotator_col="annota
 # Wide format: one row per item, one column per annotator, NaN = no annotation.
 data = AnnotationData.from_wide_df(df, item_col="item_id")
 
-# The real Snow et al. (2008) Mechanical Turk RTE release's two-file layout.
-data = AnnotationData.from_snow2008("rte.anno.csv", "rte1.tsv")
+# A task of the Snow et al. (2008) Mechanical Turk release, in the layout of
+# its all_collected_data/<task>.standardized.tsv files (tab-separated columns
+# !amt_worker_ids, orig_id, response, gold). Gold labels come with the file.
+data = AnnotationData.from_snow2008("rte.standardized.tsv")
 ```
 
 Item, annotator, and class identifiers can be any hashable value on the way

@@ -10,9 +10,9 @@ Listing 4.
 | Option | Default | Meaning |
 |---|---|---|
 | `-m, --model` | *(required)* | Registered model name |
-| `--format` | `long` | `long`, `wide`, or `snow2008` |
+| `--format` | `long` | `long`, `wide`, or `snow2008` (a `<task>.standardized.tsv` file of the Snow et al. 2008 release, which carries its own gold labels) |
 | `--item-col` / `--annotator-col` / `--label-col` | `item_id` / `annotator_id` / `label` | Column names for long format |
-| `--gold` | — | CSV of `item_id,label` for post-hoc alignment |
+| `--gold` | — | CSV of `item_id,label` for post-hoc alignment; with `snow2008`, replaces the file's own gold column |
 | `--chains` / `--warmup` / `--iters` / `--seed` | `4` / `1000` / `1000` / none | MCMC sampling |
 | `--align` / `--no-align` | align | Label-switching correction |
 | `--check-rhat` / `--no-check-rhat` | check | Convergence check |

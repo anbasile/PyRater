@@ -156,3 +156,36 @@ class TestEndToEndWithMajorityVoting:
             ],
         )
         assert result.exit_code == 0, result.stdout
+
+
+class TestSnow2008Format:
+    def test_reads_the_standardized_layout_without_a_gold_file(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        path = tmp_path / "rte.standardized.tsv"
+        pd.DataFrame(
+            {
+                "!amt_annotation_ids": ["an1", "an2", "an3", "an4", "an5", "an6"],
+                "!amt_worker_ids": ["w1", "w2", "w3", "w1", "w2", "w3"],
+                "orig_id": [266, 266, 266, 804, 804, 804],
+                "response": [1, 1, 0, 1, 1, 0],
+                "gold": [1, 1, 1, 0, 0, 0],
+            }
+        ).to_csv(path, sep="\t", index=False)
+        output_dir = tmp_path / "out"
+        result = runner.invoke(
+            app,
+            [
+                str(path),
+                "--format",
+                "snow2008",
+                "-m",
+                "majority_voting",
+                "-o",
+                str(output_dir),
+                "--no-check-rhat",
+            ],
+        )
+        assert result.exit_code == 0, result.stdout
+        labels = pd.read_csv(output_dir / "labels.csv")
+        # The majority of the workers' responses. On item 804 that is 1 although
+        # its gold label is 0, so reading the `gold` column as votes would fail.
+        assert dict(zip(labels["item_id"], labels["label"], strict=True)) == {266: 1, 804: 1}
