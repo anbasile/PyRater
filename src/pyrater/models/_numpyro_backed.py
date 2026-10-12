@@ -154,7 +154,10 @@ class NumpyroBackedModel(PyRaterModel):
             raise ValueError(f"method must be 'map' or 'nuts', got {method!r}")
 
         n_chains, n_draws = next(iter(draws.values())).shape[:2]
-        flat = {name: jnp.asarray(v.reshape(-1, *v.shape[2:])) for name, v in draws.items()}
+        # NumPy, not JAX: slicing a JAX array at a constant index outside `jit`
+        # compiles a new program for every index, which made reading 4,000
+        # draws back take longer than drawing them.
+        flat = {name: v.reshape(-1, *v.shape[2:]) for name, v in draws.items()}
 
         @jax.jit
         def per_draw(params: dict[str, Any]) -> tuple[Any, Any, Any]:
