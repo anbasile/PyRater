@@ -32,6 +32,18 @@ jobs:
       - run: uv sync --extra dev --python ${{ matrix.python-version }}
       - run: uv run pytest -m "not stan"
 
+  # JAX and NumPyro are an optional extra. This installs pyrater without it and
+  # checks that nothing but fitting an `np_*` model needs them.
+  without-jax-extra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync
+      - run: uv run --no-sync python scripts/check_without_jax.py
+
   stan-integration-tests:
     runs-on: ubuntu-latest
     steps:
