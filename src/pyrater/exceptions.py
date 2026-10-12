@@ -28,4 +28,6 @@ class CmdStanNotFoundError(RuntimeError):
 
 
 class ConvergenceWarning(UserWarning):
-    """Emitted when a fitted model's R-hat exceeds the configured threshold."""
+    """Emitted when a fit may not have converged: an R-hat above the configured
+    threshold, or, for a NumPyro-backed model fitted with ``method="map"``, a
+    loss that was still moving at the last optimisation step."""
