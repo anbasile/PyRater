@@ -12,13 +12,12 @@ import platformdirs
 
 from pyrater.data.annotation_data import AnnotationData
 
+# The file from the original release that holds every collected label. The
+# same repository's `rte/rte.anno.csv` does not: it has 2,040 of the 8,000
+# labels, and its `value` column is the gold label rather than the worker's.
 _RTE_ANNOTATIONS_URL = (
     "https://raw.githubusercontent.com/edwinrobots/bayesian_combination_tutorial2/main/"
-    "snow2008_mturk_data_with_orig_files_assembled_201904/rte/rte.anno.csv"
-)
-_RTE_GOLD_URL = (
-    "https://raw.githubusercontent.com/edwinrobots/bayesian_combination_tutorial2/main/"
-    "snow2008_mturk_data_with_orig_files_assembled_201904/rte/rte1.tsv"
+    "all_collected_data/rte.standardized.tsv"
 )
 
 
@@ -47,14 +46,10 @@ def _download(url: str, dest: Path) -> None:
 
 
 def _load_rte() -> AnnotationData:
-    cache = _rte_cache_dir()
-    annotations_path = cache / "rte.anno.csv"
-    gold_path = cache / "rte1.tsv"
+    annotations_path = _rte_cache_dir() / "rte.standardized.tsv"
     if not annotations_path.exists():
         _download(_RTE_ANNOTATIONS_URL, annotations_path)
-    if not gold_path.exists():
-        _download(_RTE_GOLD_URL, gold_path)
-    return AnnotationData.from_snow2008(annotations_path, gold_path)
+    return AnnotationData.from_snow2008(annotations_path)
 
 
 _LOADERS: dict[str, Callable[[], AnnotationData]] = {
@@ -67,10 +62,14 @@ def load_dataset(name: str) -> AnnotationData:
     """Load a built-in example dataset by name.
 
     ``"synthetic_small"`` is bundled with the package (fast, no network,
-    used in tests and tutorials). ``"rte"`` is the real Snow et al. (2008)
-    Mechanical Turk RTE release; it's downloaded on first use and cached
-    under a per-user cache directory (not bundled in the wheel — see
-    :func:`_rte_cache_dir`).
+    used in tests and tutorials).
+
+    ``"rte"`` is the recognising-textual-entailment task of the Snow et al.
+    (2008) Mechanical Turk release: 800 items with 10 labels each, 8,000
+    labels from 164 workers, and a gold label for every item. Labels are the
+    release's own codes, ``1`` for entailment and ``0`` for none. The file is
+    downloaded on first use and cached under a per-user cache directory (not
+    bundled in the wheel — see :func:`_rte_cache_dir`).
     """
     try:
         loader = _LOADERS[name]

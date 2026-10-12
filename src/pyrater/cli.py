@@ -76,11 +76,8 @@ def _load_data(
         df = pd.read_csv(input_file)
         return AnnotationData.from_wide_df(df, item_col=item_col, gold=gold)
     if fmt == "snow2008":
-        if gold_path is None:
-            raise typer.BadParameter(
-                "--format snow2008 requires --gold pointing at the gold-standard TSV file."
-            )
-        return AnnotationData.from_snow2008(input_file, gold_path)
+        # The file carries its own gold column; --gold, if given, replaces it.
+        return AnnotationData.from_snow2008(input_file, gold=gold)
     raise typer.BadParameter(f"Unknown --format {fmt!r}. Expected one of: long, wide, snow2008.")
 
 

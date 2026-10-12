@@ -164,25 +164,64 @@ class AnnotationData:
         )
 
     @classmethod
-    def from_snow2008(cls, annotations_path: str | Path, gold_path: str | Path) -> AnnotationData:
-        """Load the Snow et al. (2008) Mechanical Turk release's two-file layout.
+    def from_snow2008(
+        cls,
+        annotations_path: str | Path,
+        *,
+        gold: Mapping[Hashable, Hashable] | None = None,
+    ) -> AnnotationData:
+        """Load one task of the Snow et al. (2008) Mechanical Turk release.
 
-        ``annotations_path`` is the per-worker annotation file (columns
-        ``!amt_worker_ids``, ``id``, ``value``, ...); ``gold_path`` is the
-        tab-separated gold-standard file (columns ``id``, ``value``, ...),
-        joined on the shared task ``id``.
+        ``annotations_path`` is a ``<task>.standardized.tsv`` file from the
+        release's ``all_collected_data`` folder (e.g. ``rte.standardized.tsv``):
+        tab-separated, one row per collected label, with the columns
+
+        - ``!amt_worker_ids``: the worker;
+        - ``orig_id``: the item;
+        - ``response``: the label that worker gave that item;
+        - ``gold``: the item's gold label, repeated on each of its rows, in
+          the same coding as ``response``.
+
+        Other columns (``!amt_annotation_ids``) are ignored. Labels keep the
+        file's own coding; for RTE that is ``1`` for entailment and ``0`` for
+        none. Gold labels are taken from the ``gold`` column unless ``gold``
+        is passed, which replaces them.
+
+        The release also has per-task ``<task>.anno.csv`` files. Those are not
+        this layout and are not accepted: for RTE that file covers a quarter
+        of the labels, and its ``value`` column is the gold label, not the
+        worker's.
         """
-        annotations = pd.read_csv(annotations_path)
-        gold_df = pd.read_csv(gold_path, sep="\t")
+        annotations = pd.read_csv(annotations_path, sep="\t")
+        missing = [
+            column
+            for column in ("!amt_worker_ids", "orig_id", "response")
+            if column not in annotations.columns
+        ]
+        if missing:
+            raise ValueError(
+                f"{annotations_path} is not a Snow et al. (2008) `<task>.standardized.tsv` "
+                f"file: it has no column(s) {missing}. Found: {list(annotations.columns)}."
+            )
 
         long_df = pd.DataFrame(
             {
-                "item_id": annotations["id"],
+                "item_id": annotations["orig_id"],
                 "annotator_id": annotations["!amt_worker_ids"],
-                "label": annotations["value"].astype(str),
+                "label": annotations["response"],
             }
         )
-        gold_dict = dict(zip(gold_df["id"], gold_df["value"].astype(str), strict=True))
+        gold_dict: Mapping[Hashable, Hashable] | None = gold
+        if gold_dict is None and "gold" in annotations.columns:
+            per_item = annotations.groupby("orig_id", sort=False)["gold"]
+            ambiguous = per_item.nunique()
+            ambiguous = ambiguous[ambiguous > 1]
+            if len(ambiguous) > 0:
+                raise ValueError(
+                    f"Item(s) with more than one gold label: {ambiguous.index.tolist()[:10]}"
+                )
+            first = per_item.first()
+            gold_dict = dict(zip(first.index.tolist(), first.tolist(), strict=True))
         return cls.from_long_df(long_df, gold=gold_dict)
 
     @staticmethod

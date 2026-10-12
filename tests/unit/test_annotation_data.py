@@ -199,26 +199,72 @@ class TestFromCsv:
 
 
 class TestFromSnow2008:
-    def test_joins_annotations_and_gold_on_id(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
-        anno_path = tmp_path / "rte.anno.csv"
-        gold_path = tmp_path / "rte1.tsv"
-        pd.DataFrame(
-            {
-                "!amt_assignment_ids": ["asg1", "asg2", "asg3"],
-                "!amt_worker_ids": ["worker1", "worker1", "worker2"],
-                "id": [101, 102, 101],
-                "value": ["TRUE", "FALSE", "FALSE"],
-                "task": ["MT", "MT", "MT"],
-            }
-        ).to_csv(anno_path, index=False)
-        pd.DataFrame({"id": [101, 102], "value": ["TRUE", "FALSE"]}).to_csv(
-            gold_path, sep="\t", index=False
-        )
+    """Fixtures follow the release's `<task>.standardized.tsv` layout."""
 
-        data = AnnotationData.from_snow2008(anno_path, gold_path)
+    @staticmethod
+    def _write(path, **overrides) -> None:  # type: ignore[no-untyped-def]
+        columns = {
+            "!amt_annotation_ids": ["an1", "an2", "an3", "an4"],
+            "!amt_worker_ids": ["worker1", "worker2", "worker1", "worker3"],
+            "orig_id": [101, 101, 102, 102],
+            "response": [1, 0, 0, 0],
+            "gold": [1, 1, 0, 0],
+        }
+        columns.update(overrides)
+        frame = pd.DataFrame({k: v for k, v in columns.items() if v is not None})
+        frame.to_csv(path, sep="\t", index=False)
+
+    def test_reads_responses_as_labels_and_gold_from_its_column(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        path = tmp_path / "rte.standardized.tsv"
+        self._write(path)
+
+        data = AnnotationData.from_snow2008(path)
 
         assert data.n_items == 2
-        assert data.n_annotators == 2
-        assert data.n_annotations == 3
+        assert data.n_annotators == 3
+        assert data.n_annotations == 4
+        frame = data.to_long_df()
+        assert frame["label"].tolist() == [1, 0, 0, 0]
+        assert frame["annotator_id"].tolist() == ["worker1", "worker2", "worker1", "worker3"]
         assert data.gold is not None
-        assert len(data.gold) == 2
+        decoded = {data.item_ids[i]: data.class_labels[c] for i, c in data.gold.items()}
+        assert decoded == {101: 1, 102: 0}
+
+    def test_explicit_gold_replaces_the_gold_column(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        path = tmp_path / "rte.standardized.tsv"
+        self._write(path)
+
+        data = AnnotationData.from_snow2008(path, gold={101: 0})
+
+        assert data.gold is not None
+        decoded = {data.item_ids[i]: data.class_labels[c] for i, c in data.gold.items()}
+        assert decoded == {101: 0}
+
+    def test_a_file_without_a_gold_column_has_no_gold(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        path = tmp_path / "task.standardized.tsv"
+        self._write(path, gold=None)
+
+        assert AnnotationData.from_snow2008(path).gold is None
+
+    def test_rejects_the_anno_csv_layout(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        # The layout of the release's `rte.anno.csv`, where `value` is the gold label.
+        path = tmp_path / "rte.anno.csv"
+        pd.DataFrame(
+            {
+                "!amt_assignment_ids": ["asg1", "asg1"],
+                "!amt_worker_ids": ["worker1", "worker1"],
+                "!hypothesis": ["No", "Yes"],
+                "id": [101, 102],
+                "value": [False, True],
+            }
+        ).to_csv(path, index=False)
+
+        with pytest.raises(ValueError, match="standardized.tsv"):
+            AnnotationData.from_snow2008(path)
+
+    def test_rejects_an_item_with_two_gold_labels(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        path = tmp_path / "rte.standardized.tsv"
+        self._write(path, gold=[1, 0, 0, 0])
+
+        with pytest.raises(ValueError, match="more than one gold label.*101"):
+            AnnotationData.from_snow2008(path)
