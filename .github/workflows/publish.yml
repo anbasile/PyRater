@@ -8,6 +8,9 @@ on:
 jobs:
   build-pip:
     runs-on: ubuntu-latest
+    # Creating the release and attaching files to it needs write access.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
