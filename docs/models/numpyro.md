@@ -58,7 +58,37 @@ Two consequences are worth spelling out.
   only up to an additive constant, held in place by the priors. The Stan
   model pins the last logit to zero instead.
 
-No comparison of the two backends' posteriors on the same data has been run.
+## The Stan models on this backend (`np_stan_d&s`, `np_stan_mace`, `np_stan_hier_d&s`)
+
+For a model that *is* the Stan one, use these three. They have the priors,
+parameters and parameter names of `DS.stan`, `MACE.stan` and `HDS-NC.stan`
+(Paun et al., 2018): Dirichlet(1) class prior and confusion rows; MACE's
+Beta(0.5, 0.5) competence `theta`, Dirichlet(10) `epsilon` and a class prior
+fixed at uniform; Hierarchical D&S's `zeta`, `Omega` and `beta_raw` on K - 1
+free logits per row with the last pinned to 0.
+
+| Registry name | Same model as | Parameters in the posterior |
+|---|---|---|
+| `np_stan_d&s` | `d&s` | `pi`, `beta` |
+| `np_stan_mace` | `mace` | `theta`, `epsilon` |
+| `np_stan_hier_d&s` | `hier_d&s` | `pi`, `zeta`, `Omega`, `beta_raw` |
+
+The tests hold their log density to two references at random parameter
+values: the bundled Stan files, from which it differs only by the
+normalising constants that Stan's `~` drops, and the same three models in
+NumPyro's own example
+[Bayesian Models of Annotation](https://num.pyro.ai/en/stable/examples/annotation.html),
+which it equals. That example enumerates the class and takes a complete
+items x annotators matrix; these sum the class out by hand, so annotators
+may skip items.
+
+As in Stan, the priors of `np_stan_d&s` and `np_stan_hier_d&s` are symmetric
+in the classes, so `fit` aligns the class axis after sampling and `gold=`
+anchors it; `theta` (the mean of each confusion matrix's diagonal) is
+computed after the alignment. `np_stan_mace` needs no alignment. What still
+differs from the Stan models is the sampler: NumPyro's NUTS, its own
+transforms to unconstrained space, initialisation at the prior median, and
+no posterior predictive draws.
 
 ## `fit()`
 

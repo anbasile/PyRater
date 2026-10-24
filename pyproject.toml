@@ -30,6 +30,9 @@ dev = [
   # So the test suite exercises the NumPyro backend. A self-reference, so the
   # pins live in one place: the `jax` extra below.
   "pyrater[jax]",
+  # NumPyro's enumeration of discrete sites, for the test that holds the
+  # `np_stan_*` models to NumPyro's own annotation example.
+  "funsor>=0.4.8",
 ]
 docs = ["mkdocs>=1.6", "mkdocs-material>=9.5", "mkdocstrings[python]>=0.25"]
 examples = ["sentence-transformers>=3.0", "datasets>=2.20"]
@@ -78,6 +81,14 @@ ignore = ["PLR0913", "PLR0917", "PLR2004", "E741"]
 # need them, and a missing extra only fails when one of those models is fitted.
 "src/pyrater/models/_numpyro_backed.py" = ["PLC0415"]
 "src/pyrater/models/numpyro_models.py" = ["PLC0415"]
+# Copied from NumPyro's examples and kept as it is there.
+"tests/unit/numpyro_annotation_example.py" = ["SIM117"]
+
+# Copied from NumPyro's examples and kept as it is there; ty cannot see through
+# `numpyro.sample`'s return type.
+[[tool.ty.overrides]]
+include = ["tests/unit/numpyro_annotation_example.py"]
+rules = { not-subscriptable = "ignore", invalid-argument-type = "ignore" }
 
 [tool.ty.rules]
 # ty is Astral's type checker; strict by default via src layout inference.

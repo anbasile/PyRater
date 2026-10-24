@@ -32,6 +32,17 @@ common:
 `np_nested` has no Stan counterpart: it is for raters that are not independent
 given the class because several of them are the same model under different
 prompts.
+
+    np_stan_d&s        the Stan models `d&s`, `mace` and `hier_d&s`, written
+    np_stan_mace       again on this backend: the same priors, parameters and
+    np_stan_hier_d&s   names, so that their posteriors are meant to be the
+                       Stan models' posteriors, drawn by another sampler
+
+These three exist to check the backend against Stan, and to fit a Stan model
+where CmdStan is slow or missing. Like their Stan counterparts, `np_stan_d&s`
+and `np_stan_hier_d&s` have class-symmetric priors, so `fit` aligns their
+class axis after sampling (and `gold=` anchors it); `theta` is computed again
+after that alignment.
 """
 
 from __future__ import annotations
@@ -217,6 +228,153 @@ class NumpyroHierDawidSkene(NumpyroDawidSkene):
         import jax
 
         return jax.nn.softmax(params["mean"] + params["scale"] * params["raw"], axis=-1)
+
+
+@PyRaterModel.register("np_stan_d&s")
+class NumpyroStanDawidSkene(NumpyroDawidSkene):
+    """The Stan model `d&s` (`DS.stan`) on the NumPyro backend.
+
+    Generative model, for items i, annotators j and K classes::
+
+        pi         ~ Dirichlet(1, ..., 1)
+        beta[j, k] ~ Dirichlet(1, ..., 1)
+        z[i]       ~ Categorical(pi)
+        y[i, j]    ~ Categorical(beta[j, z[i]])
+
+    The model and its parameter names are those of `DS.stan`. What differs is
+    how it is sampled (NumPyro's NUTS, its own transform of a simplex to
+    unconstrained space, initialisation at the median of the prior) and what
+    the posterior holds: `theta[j]`, the mean of the diagonal of `beta[j]`, is
+    added; `z_rep`, `rep_vote_hist` and `log_q_c` are not there.
+
+    The priors are symmetric in the classes, so the class axis is aligned
+    after sampling, as for `d&s`.
+    """
+
+    class_indexed_params: ClassVar[Mapping[str, int]] = {"pi": 0, "beta": 1, "q_z": 1}
+
+    def _priors(self, n_classes: int, tensors: dict[str, Any]) -> dict[str, Any]:
+        import jax.numpy as jnp
+        import numpyro
+        import numpyro.distributions as dist
+
+        pi = numpyro.sample("pi", dist.Dirichlet(jnp.ones(n_classes)))
+        beta = numpyro.sample(
+            "beta",
+            dist.Dirichlet(jnp.ones(n_classes))
+            .expand([tensors["n_annotators"], n_classes])
+            .to_event(2),
+        )
+        return {"pi": pi, "beta": beta}
+
+    def _confusion(self, params: dict[str, Any], tensors: dict[str, Any]) -> Any:
+        return params["beta"]
+
+
+@PyRaterModel.register("np_stan_mace")
+class NumpyroStanMace(NumpyroDawidSkene):
+    """The Stan model `mace` (`MACE.stan`) on the NumPyro backend.
+
+    Generative model, for items i, annotators j and K classes::
+
+        theta[j]   ~ Beta(0.5, 0.5)
+        epsilon[j] ~ Dirichlet(10, ..., 10)
+        z[i]       ~ Categorical(1/K, ..., 1/K)        not learnt
+        y[i, j]    ~ theta[j] * [y = z[i]] + (1 - theta[j]) * epsilon[j, y]
+
+    The model and its parameter names are those of `MACE.stan`; `theta` is the
+    sampled competence, as there. What differs is how it is sampled (see
+    `np_stan_d&s`) and that `z_rep`, `rep_vote_hist` and `log_q_c` are not in
+    the posterior. The class axis is held by the likelihood, so no alignment
+    runs, as for `mace`.
+    """
+
+    def _priors(self, n_classes: int, tensors: dict[str, Any]) -> dict[str, Any]:
+        import jax.numpy as jnp
+        import numpyro
+        import numpyro.distributions as dist
+
+        n_annotators = tensors["n_annotators"]
+        theta = numpyro.sample("theta", dist.Beta(0.5, 0.5).expand([n_annotators]).to_event(1))
+        epsilon = numpyro.sample(
+            "epsilon",
+            dist.Dirichlet(10.0 * jnp.ones(n_classes)).expand([n_annotators]).to_event(1),
+        )
+        return {"theta": theta, "epsilon": epsilon}
+
+    def _confusion(self, params: dict[str, Any], tensors: dict[str, Any]) -> Any:
+        import jax.numpy as jnp
+
+        theta = params["theta"][:, None, None]
+        n_classes = params["epsilon"].shape[-1]
+        return theta * jnp.eye(n_classes)[None] + (1 - theta) * params["epsilon"][:, None, :]
+
+    def _competence(self, params: dict[str, Any], tensors: dict[str, Any]) -> Any:
+        return params["theta"]
+
+    def _item_loglik(self, params: dict[str, Any], tensors: dict[str, Any]) -> Any:
+        import jax.numpy as jnp
+
+        log_confusion = jnp.log(self._confusion(params, tensors))
+        n_classes = log_confusion.shape[-1]
+        return vote_loglik(tensors["indicators"], log_confusion) - jnp.log(n_classes)
+
+
+@PyRaterModel.register("np_stan_hier_d&s")
+class NumpyroStanHierDawidSkene(NumpyroDawidSkene):
+    """The Stan model `hier_d&s` (`HDS-NC.stan`) on the NumPyro backend.
+
+    Generative model, for items i, annotators j and K classes, with every
+    confusion-matrix row a softmax of K - 1 free logits and a last one pinned
+    to 0 (non-centred)::
+
+        pi               ~ Dirichlet(1, ..., 1)
+        zeta[k, l]       ~ Normal(0, 1)          l < K
+        Omega[k, l]      ~ HalfNormal(1)         l < K
+        beta_raw[j, k, l] ~ Normal(0, 1)         l < K
+        beta[j, k]       = softmax(zeta[k] + Omega[k] * beta_raw[j, k], 0)
+        z[i]             ~ Categorical(pi)
+        y[i, j]          ~ Categorical(beta[j, z[i]])
+
+    The model and its parameter names are those of `HDS-NC.stan`. What differs
+    is how it is sampled (see `np_stan_d&s`) and what the posterior holds:
+    `theta[j]`, the mean of the diagonal of the confusion matrix, is added;
+    `beta`, `beta_norm`, `z_rep`, `rep_vote_hist` and `log_q_c` are not there.
+
+    The priors are symmetric in the classes, so the class axis is aligned
+    after sampling, as for `hier_d&s`.
+    """
+
+    class_indexed_params: ClassVar[Mapping[str, int]] = {
+        "pi": 0,
+        "zeta": 0,
+        "Omega": 0,
+        "beta_raw": 1,
+        "q_z": 1,
+    }
+
+    def _priors(self, n_classes: int, tensors: dict[str, Any]) -> dict[str, Any]:
+        import jax.numpy as jnp
+        import numpyro
+        import numpyro.distributions as dist
+
+        shape = [n_classes, n_classes - 1]
+        pi = numpyro.sample("pi", dist.Dirichlet(jnp.ones(n_classes)))
+        zeta = numpyro.sample("zeta", dist.Normal(0.0, 1.0).expand(shape).to_event(2))
+        omega = numpyro.sample("Omega", dist.HalfNormal(1.0).expand(shape).to_event(2))
+        beta_raw = numpyro.sample(
+            "beta_raw",
+            dist.Normal(0.0, 1.0).expand([tensors["n_annotators"], *shape]).to_event(3),
+        )
+        return {"pi": pi, "zeta": zeta, "Omega": omega, "beta_raw": beta_raw}
+
+    def _confusion(self, params: dict[str, Any], tensors: dict[str, Any]) -> Any:
+        import jax
+        import jax.numpy as jnp
+
+        free = params["zeta"] + params["Omega"] * params["beta_raw"]
+        pinned = jnp.zeros((*free.shape[:-1], 1))
+        return jax.nn.softmax(jnp.concatenate([free, pinned], axis=-1), axis=-1)
 
 
 @PyRaterModel.register("np_nested")

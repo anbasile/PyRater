@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`np_stan_d&s`, `np_stan_mace` and `np_stan_hier_d&s`: the Stan models
+  `d&s`, `mace` and `hier_d&s` on the NumPyro backend**, with the same priors,
+  parameters and names. Tests hold their log density to the Stan files (equal
+  up to the constants Stan drops) and to NumPyro's annotation example (equal).
+  See [NumPyro backend](models/numpyro.md).
+- `funsor` in the `dev` extra, for that second test.
+
+### Fixed
+
+- A NumPyro-backed model whose class axis is aligned after sampling now
+  computes `theta` from the aligned draws. No model shipped in 0.2.0 was
+  aligned, so no earlier result is affected.
+
+### Changed
+
+- `PyRaterModel.fit` calls a new hook, `_after_alignment`, once the class
+  axis is aligned and before the R-hat check.
+
 ## 0.2.0
 
 ### Added

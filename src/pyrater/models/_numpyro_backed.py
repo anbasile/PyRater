@@ -16,7 +16,8 @@ from __future__ import annotations
 import abc
 import logging
 import warnings
-from collections.abc import Hashable, Mapping
+from collections.abc import Hashable, Iterator, Mapping
+from contextlib import contextmanager
 from typing import Any, ClassVar, Self
 
 import arviz as az
@@ -70,6 +71,23 @@ def _require_backend() -> None:
             "The NumPyro-backed models (registry names starting with 'np_') need JAX and "
             'NumPyro, which are an optional extra. Install them with: pip install "pyrater[jax]"'
         ) from error
+
+
+@contextmanager
+def _x64() -> Iterator[None]:
+    """64-bit JAX for the duration of the block.
+
+    The summed log density of 10^7 votes loses digits in float32. The flag is
+    global, so it is put back on the way out, whatever happened inside.
+    """
+    import jax
+
+    before = bool(jax.config.read("jax_enable_x64"))
+    jax.config.update("jax_enable_x64", True)
+    try:
+        yield
+    finally:
+        jax.config.update("jax_enable_x64", before)
 
 
 def dense_votes(data: AnnotationData) -> npt.NDArray[np.int64]:
@@ -409,13 +427,7 @@ class NumpyroBackedModel(PyRaterModel):
         if method not in _METHODS:
             raise ValueError(f"method must be one of {_METHODS}, got {method!r}")
         _require_backend()
-        import jax
-
-        # The summed log density of 10^7 votes loses digits in float32. The
-        # flag is global, so it is put back once the draws are NumPy arrays.
-        x64_before = bool(jax.config.read("jax_enable_x64"))
-        jax.config.update("jax_enable_x64", True)
-        try:
+        with _x64():
             return self._sample_x64(
                 data,
                 chains=chains,
@@ -429,8 +441,32 @@ class NumpyroBackedModel(PyRaterModel):
                 learning_rate=learning_rate,
                 mcmc_kwargs=dict(mcmc_kwargs or {}),
             )
-        finally:
-            jax.config.update("jax_enable_x64", x64_before)
+
+    def _after_alignment(self, idata: az.InferenceData, data: AnnotationData) -> az.InferenceData:
+        """`theta` again, from the aligned draws.
+
+        `_sample` derives `theta` from each draw before `fit` aligns the class
+        axis, and the mean of a confusion matrix's diagonal changes when its
+        rows are permuted. Only models with `class_indexed_params` get here,
+        and none of them uses groups.
+        """
+        import jax
+        import jax.numpy as jnp
+
+        posterior = idata["posterior"]
+        shape = posterior["theta"].shape
+        sites = [str(n) for n in posterior.data_vars if n not in ("q_z", "theta")]
+        tensors = self._tensors(data, None)
+        with _x64():
+            draws = {
+                name: jnp.asarray(posterior[name].values.reshape(-1, *posterior[name].shape[2:]))
+                for name in sites
+            }
+            theta = jax.lax.map(
+                lambda params: self._competence(params, tensors), draws, batch_size=256
+            )
+            posterior["theta"] = (posterior["theta"].dims, np.asarray(theta).reshape(shape))
+        return idata
 
     def _sample_x64(
         self,

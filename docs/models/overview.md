@@ -36,3 +36,7 @@ The first three share a likelihood with `d&s`, `mace` and `hier_d&s` but
 second implementation of the same ones. See
 [NumPyro backend](numpyro.md) for the differences, the `fit` arguments
 (`method="map"`, `anchors`, `groups`) and the diagnostics.
+
+Three more, `np_stan_d&s`, `np_stan_mace` and `np_stan_hier_d&s`, *are*
+`d&s`, `mace` and `hier_d&s` on the NumPyro backend: the same priors and
+parameters, tested against the Stan files.

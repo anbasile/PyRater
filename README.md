@@ -39,6 +39,8 @@ model = pyr.PyRaterModel.get("np_d&s").fit(data, method="map")
 
 They share a likelihood with their Stan namesakes but not the priors, so
 they are different models; `docs/models/numpyro.md` lists the differences.
+`np_stan_d&s`, `np_stan_mace` and `np_stan_hier_d&s` are the Stan models
+themselves, priors included, on the NumPyro backend.
 
 See `docs/` for the full guide (`docs/quickstart.md`,
 `docs/models/overview.md` for choosing a model, `docs/user_guide/` for data
