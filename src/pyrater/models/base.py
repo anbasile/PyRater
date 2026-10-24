@@ -107,6 +107,7 @@ class PyRaterModel(abc.ABC):
                     sample_size_per_class=sample_size_per_class,
                     rng=rng,
                 )
+            idata = self._after_alignment(idata, data)
 
         self._idata = idata
 
@@ -140,6 +141,12 @@ class PyRaterModel(abc.ABC):
         models compile+sample; baselines build a synthetic point-mass
         posterior instead."""
         raise NotImplementedError
+
+    def _after_alignment(self, idata: az.InferenceData, data: AnnotationData) -> az.InferenceData:
+        """Called once the class axis is aligned, before the R-hat check: the
+        place to recompute quantities that depend on the class axis but are
+        not themselves in `class_indexed_params`. The default changes nothing."""
+        return idata
 
     # -- shared post-inference computations ------------------------------------
 

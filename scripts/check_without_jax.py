@@ -14,7 +14,15 @@ import sys
 # Importing pyrater without the extra is itself the first check.
 import pyrater
 
-NUMPYRO_MODELS = ["np_d&s", "np_mace", "np_hier_d&s", "np_nested"]
+NUMPYRO_MODELS = [
+    "np_d&s",
+    "np_mace",
+    "np_hier_d&s",
+    "np_nested",
+    "np_stan_d&s",
+    "np_stan_mace",
+    "np_stan_hier_d&s",
+]
 BACKEND = ("jax", "numpyro")
 
 
